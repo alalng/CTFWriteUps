@@ -1,0 +1,250 @@
+Challenge: NCL team game E&E 3
+
+Taking a look at the binary:
+
+
+$ 	file moblin 
+moblin: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 3.7.0, BuildID[sha1]=293d1cb8200286206bb3266ac96cdc07e4e6f082, not stripped
+
+
+We can see that the executable is a 64-bit ELF file compiled for ARM aarch64 architecture. It is dynamically linked and not stripped.
+
+Getting more info on the binary:
+
+
+$	checksec --file=moblin
+[*] '/home/alng/CTFshit/NCL/teamGame/bin/moblin'
+    Arch:     aarch64-64-little
+    RELRO:    Partial RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      PIE enabled
+
+
+Here we can see what protections that the binary has.
+
+Now let us figure out what languague this program was originally written in. We do this by looking at what libraries the executable is dynamically linked to. 
+
+
+$	readelf -d moblin 
+
+Dynamic section at offset 0x1d80 contains 29 entries:
+  Tag        Type                         Name/Value
+ 0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x000000000000000c (INIT)               0xbf0
+ 0x000000000000000d (FINI)               0x111c
+ 0x0000000000000019 (INIT_ARRAY)         0x11d68
+ 0x000000000000001b (INIT_ARRAYSZ)       16 (bytes)
+ 0x000000000000001a (FINI_ARRAY)         0x11d78
+ 0x000000000000001c (FINI_ARRAYSZ)       8 (bytes)
+ 0x000000006ffffef5 (GNU_HASH)           0x298
+ 0x0000000000000005 (STRTAB)             0x528
+ 0x0000000000000006 (SYMTAB)             0x2b8
+ 0x000000000000000a (STRSZ)              760 (bytes)
+ 0x000000000000000b (SYMENT)             24 (bytes)
+ 0x0000000000000015 (DEBUG)              0x0
+ 0x0000000000000003 (PLTGOT)             0x11fe8
+ 0x0000000000000002 (PLTRELSZ)           432 (bytes)
+ 0x0000000000000014 (PLTREL)             RELA
+ 0x0000000000000017 (JMPREL)             0xa40
+ 0x0000000000000007 (RELA)               0x8d8
+ 0x0000000000000008 (RELASZ)             360 (bytes)
+ 0x0000000000000009 (RELAENT)            24 (bytes)
+ 0x000000006ffffffb (FLAGS_1)            Flags: PIE
+ 0x000000006ffffffe (VERNEED)            0x858
+ 0x000000006fffffff (VERNEEDNUM)         3
+ 0x000000006ffffff0 (VERSYM)             0x820
+ 0x000000006ffffff9 (RELACOUNT)          7
+ 0x0000000000000000 (NULL)               0x0
+
+
+As we can see the binary is linked to a c++ library. Therefore we may assume that the original file was written in c++.
+
+Now let us decompile the binary in Ghidra and take a look at the main function:
+
+
+undefined8 main(void)
+
+{
+  basic_string abStack56 [39];
+  char local_11;
+  uchar *inpStr;
+  ulong inpLen;
+  
+  std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string();
+                    /* try { // try from 00100f68 to 00100fe3 has its CatchHandler @ 00100ff8 */
+  std::operator<<((basic_ostream *)&std::cout,"To get the master sword you must prove yourself\n");
+  std::operator<<((basic_ostream *)&std::cout,"What is the key to defeat Gannon?\n");
+  std::getline<char,std::char_traits<char>,std::allocator<char>>
+            ((basic_istream *)&std::cin,abStack56);
+  inpLen = std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::length();
+  inpStr = (uchar *)std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::
+                    c_str();
+  local_11 = check(inpStr,inpLen);
+  if (local_11 == '\0') {
+                    /* } // end try from 00100f68 to 00100fe3 */
+    puts("fail");
+  }
+  else {
+    puts("congrats");
+  }
+  std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::~basic_string
+            ((basic_string<char,std::char_traits<char>,std::allocator<char>> *)abStack56);
+  return 0;
+}
+
+
+As we can see, main() basically takes input from the user and passes this string and its length as arguments to a function called check(). Depending on the return value of check, we will either succeed or fail. Our goal is to input the correct flag that will allow the check() function to return the value of true.
+
+Taking a closer look at the check() function, we see the following code:
+
+
+/* check(unsigned char const*, unsigned long) */
+
+bool check(uchar *inpStr,ulong inpLen)
+
+{
+  ulong cpyInpLen;
+  undefined5 local_28;
+  undefined3 uStack35;
+  undefined5 uStack32;
+  int local_18;
+  int local_14;
+  char *output;
+  uint index;
+  
+  local_28 = 0x24060f0809;
+  uStack35 = 0x80817e;
+  uStack32 = 0x667e702483;
+  output = (char *)malloc(8);
+  index = 0;
+  cpyInpLen = inpLen;
+  while (cpyInpLen != 0) {
+                    /* bitwise xor */
+    local_14 = (inpStr[cpyInpLen - 1] ^ 0x32) + 5;
+    output[index] = (char)local_14;
+                    /* increment index */
+    index = index + 1;
+    cpyInpLen = cpyInpLen - 1;
+                    /* decrement len */
+  }
+  local_18 = strncmp(output,(char *)&local_28,0xd);
+  free(output);
+  return local_18 == 0;
+}
+ 
+
+To summarize, what this function does is it loops over each character in our input and performs some calculations on it. It bitwise XORs each character, then adds a value of 5 to it. Afterwards, the result is stored in reverse order in another array that we will call output. Output is later compared to some preset value stored in the program and the function will return true if they match. We know that our input must have 13 characters as the length argument of strncmp() is 0xd. 
+
+Now let us try to actually run the binary in a debugger to dynamically analyse it.
+
+One way to actually be able to run the binary on a standard x86 pc is by installing a virtual machine. I personally installed qemu and downloaded a ready-to-play aarch64 qemu image from this link: "https://blahcat.github.io/2017/06/25/qemu-images-to-play-with/". After setting up the VM, run the binary in GDB and find the address at which the binary is loaded. One way to do this is by using the command "vmmap" in GDB:
+
+
+gef➤  vmmap
+Start              End                Offset             Perm Path
+0x0000aaaaaaaaa000 0x0000aaaaaaaac000 0x0000000000000000 r-x /home/user/moblin
+0x0000aaaaaaabb000 0x0000aaaaaaabc000 0x0000000000001000 r-- /home/user/moblin
+0x0000aaaaaaabc000 0x0000aaaaaaabd000 0x0000000000002000 rw- /home/user/moblin
+0x0000aaaaaaabd000 0x0000aaaaaaaef000 0x0000000000000000 rw- [heap]
+0x0000ffffb7c2f000 0x0000ffffb7d5c000 0x0000000000000000 r-x /lib/aarch64-linux-gnu/libc-2.23.so
+0x0000ffffb7d5c000 0x0000ffffb7d6b000 0x000000000012d000 --- /lib/aarch64-linux-gnu/libc-2.23.so
+0x0000ffffb7d6b000 0x0000ffffb7d6f000 0x000000000012c000 r-- /lib/aarch64-linux-gnu/libc-2.23.so
+0x0000ffffb7d6f000 0x0000ffffb7d71000 0x0000000000130000 rw- /lib/aarch64-linux-gnu/libc-2.23.so
+0x0000ffffb7d71000 0x0000ffffb7d75000 0x0000000000000000 rw- 
+0x0000ffffb7d75000 0x0000ffffb7d86000 0x0000000000000000 r-x /lib/aarch64-linux-gnu/libgcc_s.so.1
+0x0000ffffb7d86000 0x0000ffffb7d95000 0x0000000000011000 --- /lib/aarch64-linux-gnu/libgcc_s.so.1
+0x0000ffffb7d95000 0x0000ffffb7d96000 0x0000000000010000 rw- /lib/aarch64-linux-gnu/libgcc_s.so.1
+0x0000ffffb7d96000 0x0000ffffb7e32000 0x0000000000000000 r-x /lib/aarch64-linux-gnu/libm-2.23.so
+0x0000ffffb7e32000 0x0000ffffb7e41000 0x000000000009c000 --- /lib/aarch64-linux-gnu/libm-2.23.so
+0x0000ffffb7e41000 0x0000ffffb7e42000 0x000000000009b000 r-- /lib/aarch64-linux-gnu/libm-2.23.so
+0x0000ffffb7e42000 0x0000ffffb7e43000 0x000000000009c000 rw- /lib/aarch64-linux-gnu/libm-2.23.so
+0x0000ffffb7e43000 0x0000ffffb7fb3000 0x0000000000000000 r-x /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.21
+0x0000ffffb7fb3000 0x0000ffffb7fc2000 0x0000000000170000 --- /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.21
+0x0000ffffb7fc2000 0x0000ffffb7fcc000 0x000000000016f000 r-- /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.21
+0x0000ffffb7fcc000 0x0000ffffb7fce000 0x0000000000179000 rw- /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.21
+0x0000ffffb7fce000 0x0000ffffb7fd2000 0x0000000000000000 rw- 
+0x0000ffffb7fd2000 0x0000ffffb7fee000 0x0000000000000000 r-x /lib/aarch64-linux-gnu/ld-2.23.so
+0x0000ffffb7ff0000 0x0000ffffb7ff6000 0x0000000000000000 rw- 
+0x0000ffffb7ffc000 0x0000ffffb7ffd000 0x0000000000000000 r-- [vvar]
+0x0000ffffb7ffd000 0x0000ffffb7ffe000 0x0000000000000000 r-x [vdso]
+0x0000ffffb7ffe000 0x0000ffffb7fff000 0x000000000001c000 r-- /lib/aarch64-linux-gnu/ld-2.23.so
+0x0000ffffb7fff000 0x0000ffffb8001000 0x000000000001d000 rw- /lib/aarch64-linux-gnu/ld-2.23.so
+0x0000fffffffdf000 0x0001000000000000 0x0000000000000000 rw- [stack]
+
+
+In my case, the binary is loaded at 0x0000aaaaaaaaa000. (Note that I also have gef installed ontop of gdb, as my qemu image comes preinstalled with it)
+
+Now we need to find the address of strncmp(). First, we find the offset of the function using ghidra.(Offset is +0xf14) Add the offset to the image base and set a breakpoint before strncmp():
+
+
+gef➤  break *0x0x0000aaaaaaaaaf14
+Breakpoint 1 at 0xaaaaaaaaaf14
+
+
+In aarch64, the calling convention says that function arguments are to be passed into registers x0, x1, x2, ...etc in that order. Using this information, we can find the value that our output is compared to by dereferencing the pointer stored in the x1 register. This is because we know that the preset value is the second argument in strncmp(). Displaying the bytes at this address allows us to find our desired output:
+
+
+gef➤  x/13b 0x0000fffffffff9d8
+0xfffffffff9d8:	0x09	0x08	0x0f	0x06	0x24	0x7e	0x81	0x80
+0xfffffffff9e0:	0x83	0x24	0x70	0x7e	0x66
+
+
+The desired output written in array form:
+
+
+[0x09, 0x08, 0x0f, 0x06, 0x24, 0x7e, 0x81, 0x80, 0x83, 0x24, 0x70, 0x7e, 0x66]
+
+
+In order to get the correct input that results in our desired output, we can write a python script utilizing the Z3 module. Z3 is a satisfiability modulo theory solver developed by Microsoft. If you do not know what that means, don't worry. All you need to know is that it can allow us to find the original input, that when passed through a given function, results in our desired output. Understanding the complicated mathematical formulas that are utilized by Z3 to solve for the input is not needed.
+
+Building the final python exploit script:
+
+
+from z3 import *
+
+desOut = [0x09, 0x08, 0x0f, 0x06, 0x24, 0x7e, 0x81, 0x80, 0x83, 0x24, 0x70, 0x7e, 0x66]
+
+inp = []
+
+for i in range(0xd):
+    byte = BitVec("%s" % i, 8)
+    inp.append(byte)
+
+z = Solver()
+
+index = 0
+inplen = len(inp)
+
+while(inplen != 0):
+    z.add(desOut[index] == (inp[inplen-1] ^ 0x32) + 5)
+    index += 1
+    inplen -= 1
+
+if (z.check() == sat):
+    solution = z.model()
+    flag = ""
+    for i in range(0, 0xd):
+        flag += chr(int(str(solution[inp[i]])))
+    print(flag)
+
+
+elif (z.check() == unsat):
+    print("ERROR")
+
+
+Explaination of the script:
+
+On the first line we import z3, then create our variables to hold our desired output and the input that we are trying to get. Next, we designate the size of our input array and create a Solver() object called z. We recreate the operations that the input is subjected to in the binary, then assert our constraints into the solver in the line: "z.add(desOut[index] == (inp[inplen-1] ^ 0x32) + 5)". Afterwards, we check to see if the solver has found a satisfiable solution. If it has, we model the solution and print the flag in neat, human readable, text format. 
+
+After running the script, we can find the flag:
+
+
+$	python asdfMoblin.py 
+SKY-LINK-3816
+
+
+Congratulations! We have found the correct flag!
